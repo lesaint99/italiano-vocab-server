@@ -91,7 +91,7 @@ app.get('/mcp', (req, res) => {
   clients.set(clientId, res);
 
   // Send endpoint event to tell Claude where to POST messages
-  const postUrl = `${req.protocol}://${req.get('host')}/mcp/message?clientId=${clientId}`;
+  const postUrl = `https://${req.get('host')}/mcp/message?clientId=${clientId}`;
   res.write(`event: endpoint\ndata: ${JSON.stringify({ uri: postUrl })}\n\n`);
 
   req.on('close', () => {
