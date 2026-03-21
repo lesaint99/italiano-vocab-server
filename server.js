@@ -9,7 +9,7 @@ app.use(express.json());
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
@@ -24,145 +24,152 @@ function getAuth() {
   );
 }
 
-async function addWord({ italian, english, context, addedDate }, res) {
-  if (!italian || !english) {
-    return res.status(400).json({ status: 'error', message: 'Missing italian or english' });
+async function addWordToSheet({ italian, english, context, addedDate }) {
+  const auth = getAuth();
+  const sheets = google.sheets({ version: 'v4', auth });
+  const today = addedDate || new Date().toISOString().slice(0, 10);
+
+  const existing = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Sheet1!A:A',
+  });
+
+  const rows = existing.data.values || [];
+  if (rows.some(r => r[0]?.toLowerCase() === italian.toLowerCase())) {
+    return { status: 'exists', message: `"${italian}" already in list` };
   }
-  try {
-    const auth = getAuth();
-    const sheets = google.sheets({ version: 'v4', auth });
-    const today = addedDate || new Date().toISOString().slice(0, 10);
 
-    const existing = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'Sheet1!A:A',
-    });
-
-    const rows = existing.data.values || [];
-    if (rows.some(r => r[0]?.toLowerCase() === italian.toLowerCase())) {
-      return res.json({ status: 'exists', message: `"${italian}" already in list` });
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Sheet1!A:F',
+    valueInputOption: 'RAW',
+    requestBody: {
+      values: [[italian, english, context || '', 0, today, today]]
     }
+  });
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'Sheet1!A:F',
-      valueInputOption: 'RAW',
-      requestBody: {
-        values: [[italian, english, context || '', 0, today, today]]
-      }
-    });
-
-    res.json({ status: 'ok', message: `Added "${italian}"` });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ status: 'error', message: err.message });
-  }
+  return { status: 'ok', message: `Added "${italian}"` };
 }
 
 // Existing GET endpoint
 app.get('/add', async (req, res) => {
-  await addWord(req.query, res);
+  try {
+    const result = await addWordToSheet(req.query);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
 });
 
 // Existing POST endpoint
 app.post('/add', async (req, res) => {
-  await addWord(req.body, res);
+  try {
+    const result = await addWordToSheet(req.body);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
 });
 
-// ─── MCP ENDPOINT ───────────────────────────────────────────────────────────
+// ─── MCP SSE TRANSPORT ───────────────────────────────────────────────────────
 
-// MCP discovery
-app.get('/', (req, res) => {
-  res.json({
-    name: 'italiano-vocab',
-    version: '1.0.0',
-    description: 'Add Italian vocabulary words to Google Sheets',
+// Store SSE clients
+const clients = new Map();
+let clientIdCounter = 0;
+
+// MCP SSE endpoint - Claude connects here first
+app.get('/mcp', (req, res) => {
+  const clientId = ++clientIdCounter;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  clients.set(clientId, res);
+
+  // Send endpoint event to tell Claude where to POST messages
+  const postUrl = `${req.protocol}://${req.get('host')}/mcp/message?clientId=${clientId}`;
+  res.write(`event: endpoint\ndata: ${JSON.stringify({ uri: postUrl })}\n\n`);
+
+  req.on('close', () => {
+    clients.delete(clientId);
   });
 });
 
-// MCP handler
-app.post('/mcp', (req, res) => {
-  const { method, id } = req.body;
+// MCP message endpoint - Claude POSTs JSON-RPC messages here
+app.post('/mcp/message', async (req, res) => {
+  const clientId = parseInt(req.query.clientId);
+  const sseRes = clients.get(clientId);
+  const { method, id, params } = req.body;
+
+  res.status(202).end();
+
+  async function sendResult(result) {
+    if (!sseRes) return;
+    const msg = JSON.stringify({ jsonrpc: '2.0', id, result });
+    sseRes.write(`event: message\ndata: ${msg}\n\n`);
+  }
+
+  async function sendError(code, message) {
+    if (!sseRes) return;
+    const msg = JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } });
+    sseRes.write(`event: message\ndata: ${msg}\n\n`);
+  }
 
   if (method === 'initialize') {
-    return res.json({
-      jsonrpc: '2.0',
-      id,
-      result: {
-        protocolVersion: '2024-11-05',
-        capabilities: { tools: {} },
-        serverInfo: { name: 'italiano-vocab', version: '1.0.0' }
-      }
+    await sendResult({
+      protocolVersion: '2024-11-05',
+      capabilities: { tools: {} },
+      serverInfo: { name: 'italiano-vocab', version: '1.0.0' }
     });
+    return;
   }
 
   if (method === 'notifications/initialized') {
-    return res.status(200).end();
+    return;
   }
 
   if (method === 'tools/list') {
-    return res.json({
-      jsonrpc: '2.0',
-      id,
-      result: {
-        tools: [{
-          name: 'add_vocab',
-          description: 'Add an Italian vocabulary word to the user\'s Google Sheet',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              italian: { type: 'string', description: 'The Italian word or phrase' },
-              english: { type: 'string', description: 'The English translation' },
-              context: { type: 'string', description: 'An example sentence in Italian' },
-              addedDate: { type: 'string', description: 'Date in YYYY-MM-DD format' }
-            },
-            required: ['italian', 'english']
-          }
-        }]
-      }
+    await sendResult({
+      tools: [{
+        name: 'add_vocab',
+        description: 'Add an Italian vocabulary word to the user\'s Google Sheet',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            italian: { type: 'string', description: 'The Italian word or phrase' },
+            english: { type: 'string', description: 'The English translation' },
+            context: { type: 'string', description: 'An example sentence in Italian' },
+            addedDate: { type: 'string', description: 'Date in YYYY-MM-DD format' }
+          },
+          required: ['italian', 'english']
+        }
+      }]
     });
+    return;
   }
 
   if (method === 'tools/call') {
-    const { name, arguments: args } = req.body.params;
+    const { name, arguments: args } = params;
     if (name === 'add_vocab') {
-      const auth = getAuth();
-      const sheets = google.sheets({ version: 'v4', auth });
-      const today = args.addedDate || new Date().toISOString().slice(0, 10);
-
-      sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: 'Sheet1!A:A',
-      }).then(existing => {
-        const rows = existing.data.values || [];
-        if (rows.some(r => r[0]?.toLowerCase() === args.italian.toLowerCase())) {
-          return res.json({
-            jsonrpc: '2.0', id,
-            result: { content: [{ type: 'text', text: `"${args.italian}" already in your vocab list` }] }
-          });
-        }
-        return sheets.spreadsheets.values.append({
-          spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A:F',
-          valueInputOption: 'RAW',
-          requestBody: { values: [[args.italian, args.english, args.context || '', 0, today, today]] }
-        }).then(() => {
-          res.json({
-            jsonrpc: '2.0', id,
-            result: { content: [{ type: 'text', text: `Added "${args.italian}" (${args.english})` }] }
-          });
+      try {
+        const result = await addWordToSheet(args);
+        await sendResult({
+          content: [{ type: 'text', text: result.message }]
         });
-      }).catch(err => {
-        res.json({
-          jsonrpc: '2.0', id,
-          result: { content: [{ type: 'text', text: `Error: ${err.message}` }] }
+      } catch (err) {
+        await sendResult({
+          content: [{ type: 'text', text: `Error: ${err.message}` }]
         });
-      });
+      }
       return;
     }
   }
 
-  res.status(404).json({ jsonrpc: '2.0', id, error: { code: -32601, message: 'Method not found' } });
+  await sendError(-32601, 'Method not found');
 });
 
 // ────────────────────────────────────────────────────────────────────────────
