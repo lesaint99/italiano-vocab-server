@@ -24,40 +24,42 @@ function getAuth() {
   );
 }
 
-async function addWordToSheet({ italian, english, context, addedDate }) {
+// Fire-and-forget — does not block the response
+function addWordInBackground({ italian, english, context, addedDate }) {
   const auth = getAuth();
   const sheets = google.sheets({ version: 'v4', auth });
   const today = addedDate || new Date().toISOString().slice(0, 10);
 
-  const existing = await sheets.spreadsheets.values.get({
+  sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
     range: 'Sheet1!A:A',
-  });
-
-  const rows = existing.data.values || [];
-  if (rows.some(r => r[0]?.toLowerCase() === italian.toLowerCase())) {
-    return { status: 'exists', message: `"${italian}" already in list` };
-  }
-
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'Sheet1!A:F',
-    valueInputOption: 'RAW',
-    requestBody: {
-      values: [[italian, english, context || '', 0, today, today]]
+  }).then(existing => {
+    const rows = existing.data.values || [];
+    if (rows.some(r => r[0]?.toLowerCase() === italian.toLowerCase())) {
+      console.log(`"${italian}" already in list`);
+      return;
     }
+    return sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Sheet1!A:F',
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [[italian, english, context || '', 0, today, today]]
+      }
+    }).then(() => {
+      console.log(`Added "${italian}"`);
+    });
+  }).catch(err => {
+    console.error(`Error adding "${italian}":`, err.message);
   });
-
-  return { status: 'ok', message: `Added "${italian}"` };
 }
 
 // Existing GET endpoint
 app.get('/add', async (req, res) => {
   try {
-    const result = await addWordToSheet(req.query);
-    res.json(result);
+    addWordInBackground(req.query);
+    res.json({ status: 'ok', message: `Adding "${req.query.italian}"` });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
@@ -65,28 +67,23 @@ app.get('/add', async (req, res) => {
 // Existing POST endpoint
 app.post('/add', async (req, res) => {
   try {
-    const result = await addWordToSheet(req.body);
-    res.json(result);
+    addWordInBackground(req.body);
+    res.json({ status: 'ok', message: `Adding "${req.body.italian}"` });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 });
 
 // ─── MCP STREAMABLE HTTP TRANSPORT ──────────────────────────────────────────
-// Single endpoint handles all MCP communication
 
 app.post('/mcp', async (req, res) => {
   const body = req.body;
-
-  // Handle batch requests (array) or single request
   const requests = Array.isArray(body) ? body : [body];
   const responses = [];
 
   for (const request of requests) {
     const { method, id, params } = request;
 
-    // Notifications have no id and don't need a response
     if (id === undefined) continue;
 
     if (method === 'initialize') {
@@ -129,25 +126,17 @@ app.post('/mcp', async (req, res) => {
     if (method === 'tools/call') {
       const { name, arguments: args } = params;
       if (name === 'add_vocab') {
-        try {
-          const result = await addWordToSheet(args);
-          responses.push({
-            jsonrpc: '2.0',
-            id,
-            result: { content: [{ type: 'text', text: result.message }] }
-          });
-        } catch (err) {
-          responses.push({
-            jsonrpc: '2.0',
-            id,
-            result: { content: [{ type: 'text', text: `Error: ${err.message}` }] }
-          });
-        }
+        // Respond immediately, write to sheet in background
+        addWordInBackground(args);
+        responses.push({
+          jsonrpc: '2.0',
+          id,
+          result: { content: [{ type: 'text', text: `✓` }] }
+        });
         continue;
       }
     }
 
-    // Unknown method
     responses.push({
       jsonrpc: '2.0',
       id,
@@ -155,14 +144,10 @@ app.post('/mcp', async (req, res) => {
     });
   }
 
-  if (responses.length === 0) {
-    return res.status(204).end();
-  }
-
+  if (responses.length === 0) return res.status(204).end();
   res.json(responses.length === 1 ? responses[0] : responses);
 });
 
-// MCP GET endpoint for session init (Streamable HTTP spec)
 app.get('/mcp', (req, res) => {
   res.status(405).json({ error: 'Use POST for MCP Streamable HTTP transport' });
 });
