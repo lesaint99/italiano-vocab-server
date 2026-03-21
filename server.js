@@ -75,7 +75,6 @@ app.post('/add', async (req, res) => {
 
 // ─── MCP SSE TRANSPORT ───────────────────────────────────────────────────────
 
-// Store SSE clients
 const clients = new Map();
 let clientIdCounter = 0;
 
@@ -94,7 +93,13 @@ app.get('/mcp', (req, res) => {
   const postUrl = `https://${req.get('host')}/mcp/message?clientId=${clientId}`;
   res.write(`event: endpoint\ndata: ${JSON.stringify({ uri: postUrl })}\n\n`);
 
+  // Send keepalive every 15 seconds to prevent connection timeout
+  const heartbeat = setInterval(() => {
+    res.write(': keepalive\n\n');
+  }, 15000);
+
   req.on('close', () => {
+    clearInterval(heartbeat);
     clients.delete(clientId);
   });
 });
