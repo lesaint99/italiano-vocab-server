@@ -9,7 +9,7 @@ app.use(express.json());
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Mcp-Session-Id');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
@@ -73,108 +73,98 @@ app.post('/add', async (req, res) => {
   }
 });
 
-// ─── MCP SSE TRANSPORT ───────────────────────────────────────────────────────
+// ─── MCP STREAMABLE HTTP TRANSPORT ──────────────────────────────────────────
+// Single endpoint handles all MCP communication
 
-const clients = new Map();
-let clientIdCounter = 0;
+app.post('/mcp', async (req, res) => {
+  const body = req.body;
 
-// MCP SSE endpoint - Claude connects here first
-app.get('/mcp', (req, res) => {
-  const clientId = ++clientIdCounter;
+  // Handle batch requests (array) or single request
+  const requests = Array.isArray(body) ? body : [body];
+  const responses = [];
 
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
+  for (const request of requests) {
+    const { method, id, params } = request;
 
-  clients.set(clientId, res);
+    // Notifications have no id and don't need a response
+    if (id === undefined) continue;
 
-  // Send endpoint event to tell Claude where to POST messages
-  const postUrl = `https://${req.get('host')}/mcp/message?clientId=${clientId}`;
-  res.write(`event: endpoint\ndata: ${JSON.stringify({ uri: postUrl })}\n\n`);
+    if (method === 'initialize') {
+      responses.push({
+        jsonrpc: '2.0',
+        id,
+        result: {
+          protocolVersion: '2024-11-05',
+          capabilities: { tools: {} },
+          serverInfo: { name: 'italiano-vocab', version: '1.0.0' }
+        }
+      });
+      continue;
+    }
 
-  // Send keepalive every 15 seconds to prevent connection timeout
-  const heartbeat = setInterval(() => {
-    res.write(': keepalive\n\n');
-  }, 15000);
+    if (method === 'tools/list') {
+      responses.push({
+        jsonrpc: '2.0',
+        id,
+        result: {
+          tools: [{
+            name: 'add_vocab',
+            description: 'Add an Italian vocabulary word to the user\'s Google Sheet',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                italian: { type: 'string', description: 'The Italian word or phrase' },
+                english: { type: 'string', description: 'The English translation' },
+                context: { type: 'string', description: 'An example sentence in Italian' },
+                addedDate: { type: 'string', description: 'Date in YYYY-MM-DD format' }
+              },
+              required: ['italian', 'english']
+            }
+          }]
+        }
+      });
+      continue;
+    }
 
-  req.on('close', () => {
-    clearInterval(heartbeat);
-    clients.delete(clientId);
-  });
+    if (method === 'tools/call') {
+      const { name, arguments: args } = params;
+      if (name === 'add_vocab') {
+        try {
+          const result = await addWordToSheet(args);
+          responses.push({
+            jsonrpc: '2.0',
+            id,
+            result: { content: [{ type: 'text', text: result.message }] }
+          });
+        } catch (err) {
+          responses.push({
+            jsonrpc: '2.0',
+            id,
+            result: { content: [{ type: 'text', text: `Error: ${err.message}` }] }
+          });
+        }
+        continue;
+      }
+    }
+
+    // Unknown method
+    responses.push({
+      jsonrpc: '2.0',
+      id,
+      error: { code: -32601, message: 'Method not found' }
+    });
+  }
+
+  if (responses.length === 0) {
+    return res.status(204).end();
+  }
+
+  res.json(responses.length === 1 ? responses[0] : responses);
 });
 
-// MCP message endpoint - Claude POSTs JSON-RPC messages here
-app.post('/mcp/message', async (req, res) => {
-  const clientId = parseInt(req.query.clientId);
-  const sseRes = clients.get(clientId);
-  const { method, id, params } = req.body;
-
-  res.status(202).end();
-
-  async function sendResult(result) {
-    if (!sseRes) return;
-    const msg = JSON.stringify({ jsonrpc: '2.0', id, result });
-    sseRes.write(`event: message\ndata: ${msg}\n\n`);
-  }
-
-  async function sendError(code, message) {
-    if (!sseRes) return;
-    const msg = JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } });
-    sseRes.write(`event: message\ndata: ${msg}\n\n`);
-  }
-
-  if (method === 'initialize') {
-    await sendResult({
-      protocolVersion: '2024-11-05',
-      capabilities: { tools: {} },
-      serverInfo: { name: 'italiano-vocab', version: '1.0.0' }
-    });
-    return;
-  }
-
-  if (method === 'notifications/initialized') {
-    return;
-  }
-
-  if (method === 'tools/list') {
-    await sendResult({
-      tools: [{
-        name: 'add_vocab',
-        description: 'Add an Italian vocabulary word to the user\'s Google Sheet',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            italian: { type: 'string', description: 'The Italian word or phrase' },
-            english: { type: 'string', description: 'The English translation' },
-            context: { type: 'string', description: 'An example sentence in Italian' },
-            addedDate: { type: 'string', description: 'Date in YYYY-MM-DD format' }
-          },
-          required: ['italian', 'english']
-        }
-      }]
-    });
-    return;
-  }
-
-  if (method === 'tools/call') {
-    const { name, arguments: args } = params;
-    if (name === 'add_vocab') {
-      try {
-        const result = await addWordToSheet(args);
-        await sendResult({
-          content: [{ type: 'text', text: result.message }]
-        });
-      } catch (err) {
-        await sendResult({
-          content: [{ type: 'text', text: `Error: ${err.message}` }]
-        });
-      }
-      return;
-    }
-  }
-
-  await sendError(-32601, 'Method not found');
+// MCP GET endpoint for session init (Streamable HTTP spec)
+app.get('/mcp', (req, res) => {
+  res.status(405).json({ error: 'Use POST for MCP Streamable HTTP transport' });
 });
 
 // ────────────────────────────────────────────────────────────────────────────
