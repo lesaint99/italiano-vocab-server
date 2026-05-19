@@ -94,6 +94,83 @@ function addWordInBackground({ italian, english, context, addedDate }) {
   });
 }
 
+// ── Read all words ─────────────────────────────────────────────────────────
+// Returns the entire word list from the sheet as JSON. The PWA calls this
+// on app open and after the user taps the refresh button.
+app.get('/words', tokenAuth, async (req, res) => {
+  try {
+    const auth = getAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+    const r = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Sheet1!A:F',
+    });
+    const rows = r.data.values || [];
+    const words = rows
+      .filter(row => row[0] && row[0].trim()) // skip empty rows
+      .map(row => ({
+        italian: row[0] || '',
+        english: row[1] || '',
+        context: row[2] || '',
+        mastery: Number(row[3]) || 0,
+        addedDate: row[4] || '',
+        lastUpdated: row[5] || ''
+      }));
+    res.json({ status: 'ok', words });
+  } catch (err) {
+    console.error('GET /words error:', err.message);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
+// ── Update a word's mastery ────────────────────────────────────────────────
+// Body: { italian: "...", mastery: 0..5 }
+// Finds the row by italian (case-insensitive), updates the mastery column (D)
+// and lastUpdated column (F). Mastery is clamped to 0..5; the new app only
+// ever increases it, but the server doesn't enforce that — caller's choice.
+app.post('/update_mastery', tokenAuth, async (req, res) => {
+  try {
+    const { italian, mastery } = req.body;
+    if (!italian || mastery === undefined) {
+      return res.status(400).json({ status: 'error', message: 'italian and mastery required' });
+    }
+    const clamped = Math.max(0, Math.min(5, Number(mastery) || 0));
+    const today = new Date().toISOString().slice(0, 10);
+
+    const auth = getAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Find the row index by scanning column A.
+    const all = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Sheet1!A:A',
+    });
+    const rows = all.data.values || [];
+    const idx = rows.findIndex(r => (r[0] || '').toLowerCase() === italian.toLowerCase());
+    if (idx === -1) {
+      return res.status(404).json({ status: 'error', message: `word "${italian}" not found` });
+    }
+    const rowNum = idx + 1; // 1-indexed for A1 notation
+
+    // Update D (mastery) and F (lastUpdated) in one batch.
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        valueInputOption: 'RAW',
+        data: [
+          { range: `Sheet1!D${rowNum}`, values: [[clamped]] },
+          { range: `Sheet1!F${rowNum}`, values: [[today]] }
+        ]
+      }
+    });
+
+    res.json({ status: 'ok', italian, mastery: clamped, lastUpdated: today });
+  } catch (err) {
+    console.error('POST /update_mastery error:', err.message);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
 // ── Protected endpoints — tokenAuth gate ───────────────────────────────────
 app.get('/add', tokenAuth, async (req, res) => {
   try {
