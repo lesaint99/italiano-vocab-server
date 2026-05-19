@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta name="description" content="Italiano Quiz">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Italiano">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <title>Italiano Quiz</title>
+  <style>
+    /* ── Custom fonts ─────────────────────────────────────────────────── */
+    @font-face {
+      font-family: 'HAL Magic Variable';
+      src: url('/fonts/HALMagicVariable-Variable.ttf') format('truetype-variations');
+      font-weight: 100 800;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Space Crusaders';
+      src: url('/fonts/SpaceCrusadersItalic-ZV1Zx.ttf') format('truetype');
+      font-style: italic;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Fact Deck Web';
+      src: url('/fonts/FactDeckWeb-55Regular.ttf') format('truetype');
+      font-display: swap;
+    }
+
+    :root {
+      --green: #3FA838;
+      --green-dark: #2F8528;
+      --red: #EF3340;
+      --red-dark: #C82731;
+      --white: #FFFFFF;
+      --grey-row: #ECECEC;
+      --grey-text: #999999;
+      --text: #111111;
+      /* HAL Magic Variable axis pins */
+      --hal-bold: 'XHGH' 620, 'slnt' 0;
+      --hal-regular: 'XHGH' 620, 'slnt' 0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      height: 100%;
+      background: var(--white);
+      color: var(--text);
+      font-family: 'HAL Magic Variable', system-ui, sans-serif;
+      overscroll-behavior: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      overflow: hidden;
+    }
+
+    button, input { font-family: inherit; }
+
+    .screen {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .screen.active { display: flex; }
+
+    /* ── HOME ─────────────────────────────────────────────────────────── */
+    .home {
+      align-items: center;
+      justify-content: center;
+      gap: 36px;
+      padding: 40px 24px;
+    }
+
+    .home-title {
+      text-align: center;
+      line-height: 0.92;
+    }
+    .home-title .italiano,
+    .home-title .quiz {
+      display: block;
+      font-family: 'HAL Magic Variable';
+      font-weight: 650;
+      font-variation-settings: var(--hal-bold);
+      letter-spacing: -0.02em;
+    }
+    /* Per SETUP.md typography spec */
+    .home-title .italiano { color: var(--green); font-size: 67pt; }
+    .home-title .quiz     { color: var(--red);   font-size: 67pt; margin-top: -10pt; }
+
+    .stat-row {
+      display: flex;
+      gap: 14px;
+    }
+    .stat-tile {
+      width: 84px;
+      height: 84px;
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 6px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+      border: none;
+      cursor: default;
+    }
+    .stat-tile.words    { background: var(--green); color: var(--white); cursor: pointer; }
+    .stat-tile.mastered { background: var(--white); color: var(--text); border: 1.5px solid #DDD; }
+    .stat-tile.streak   { background: var(--red); color: var(--white); }
+    .stat-tile.words:active { transform: scale(0.97); }
+
+    .stat-num {
+      font-family: 'Space Crusaders';
+      font-style: italic;
+      font-size: 30pt;
+      line-height: 1;
+    }
+    .stat-label {
+      font-family: 'HAL Magic Variable';
+      font-weight: 650;
+      font-variation-settings: var(--hal-bold);
+      font-size: 9pt;
+      letter-spacing: 0.06em;
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+
+    .start-btn {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: var(--green);
+      color: var(--white);
+      border: none;
+      font-family: 'Space Crusaders';
+      font-style: italic;
+      font-size: 21pt;
+      cursor: pointer;
+      box-shadow: 0 4px 18px rgba(63,168,56,0.35);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .start-btn:active {
+      transform: scale(0.96);
+      box-shadow: 0 2px 8px rgba(63,168,56,0.3);
+    }
+    .start-btn:disabled {
+      background: #CCC;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    /* ── HEADER (quiz, wordlist) ───────────────────────────────────────── */
+    .header {
+      padding: 16px 20px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .iq-logo {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 2.5px solid var(--green);
+      background: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      flex-shrink: 0;
+    }
+    .iq-logo span {
+      color: var(--red);
+      font-family: 'Fact Deck Web';
+      font-size: 26pt;
+      line-height: 1;
+      margin-top: -2px;
+    }
+    .iq-logo:active { transform: scale(0.95); }
+
+    .lang-toggle {
+      display: flex;
+      gap: 6px;
+    }
+    .lang-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      padding: 2px;
+      background: var(--white);
+      transition: border-color 0.15s, transform 0.1s;
+    }
+    .lang-btn svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 4px;
+    }
+    .lang-btn.active { border-color: var(--text); }
+    .lang-btn:active { transform: scale(0.95); }
+
+    .header-spacer { width: 52px; flex-shrink: 0; }
+
+    /* ── QUIZ ──────────────────────────────────────────────────────────── */
+    .quiz-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 24px 32px;
+      gap: 14px;
+      min-height: 0;
+      justify-content: flex-start;
+    }
+    .quiz-pill {
+      background: var(--grey-row);
+      border-radius: 32px;
+      padding: 18px 28px;
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      font-family: 'HAL Magic Variable';
+      font-weight: 650;
+      font-variation-settings: var(--hal-bold);
+      font-size: 26pt;
+      color: var(--text);
+      line-height: 1.1;
+    }
+    .quiz-pill.answer { padding: 0; }
+    .quiz-pill input {
+      width: 100%;
+      border: none;
+      outline: none;
+      background: transparent;
+      padding: 18px 28px;
+      font: inherit;
+      color: inherit;
+      border-radius: 32px;
+    }
+    .quiz-pill input::placeholder { color: var(--grey-text); font-style: normal; }
+    .quiz-pill input:disabled { background: transparent; }
+
+    .feedback {
+      text-align: center;
+      font-family: 'HAL Magic Variable';
+      font-weight: 650;
+      font-variation-settings: var(--hal-bold);
+      font-size: 14pt;
+      min-height: 22px;
+      padding: 4px;
+    }
+    .feedback.correct { color: var(--green); }
+    .feedback.wrong   { color: var(--red); }
+
+    .progress-dots {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      padding: 18px 0 8px;
+    }
+    .dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2.5px solid var(--text);
+      background: transparent;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .dot.correct { background: var(--green); border-color: var(--green); }
+    .dot.wrong   { background: var(--red);   border-color: var(--red); }
+
+    /* ── WORDLIST ──────────────────────────────────────────────────────── */
+    .word-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 16px 100px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .word-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 18px;
+      background: var(--grey-row);
+      border-radius: 22px;
+      margin-bottom: 6px;
+      font-family: 'HAL Magic Variable';
+      font-weight: 400;
+      font-variation-settings: var(--hal-regular);
+      font-size: 15pt;
+      line-height: 1.2;
+      gap: 12px;
+    }
+    .word-row .it { color: var(--green); }
+    .word-row .en { color: var(--red); text-align: right; }
+    .word-row.mastered { background: var(--green); }
+    .word-row.mastered .it,
+    .word-row.mastered .en { color: var(--white); }
+
+    .refresh-btn {
+      position: fixed;
+      bottom: calc(20px + env(safe-area-inset-bottom));
+      right: 20px;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: var(--white);
+      border: 2.5px solid var(--green);
+      color: var(--green);
+      font-size: 22px;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 0;
+      transition: transform 0.1s;
+    }
+    .refresh-btn:active { transform: scale(0.93); }
+    .refresh-btn.spinning { animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ────────────────────────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      top: calc(20px + env(safe-area-inset-top));
+      left: 50%;
+      transform: translateX(-50%) translateY(-120px);
+      background: var(--text);
+      color: var(--white);
+      padding: 10px 18px;
+      border-radius: 22px;
+      font-family: 'HAL Magic Variable';
+      font-weight: 400;
+      font-variation-settings: var(--hal-regular);
+      font-size: 11pt;
+      z-index: 999;
+      transition: transform 0.25s ease;
+      white-space: nowrap;
+      max-width: 90vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    .empty {
+      text-align: center;
+      padding: 60px 24px;
+      color: var(--grey-text);
+      font-family: 'HAL Magic Variable';
+      font-weight: 400;
+      font-variation-settings: var(--hal-regular);
+      font-size: 13pt;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Toast ── -->
+<div class="toast" id="toast"></div>
+
+<!-- ── HOME ── -->
+<div class="screen home active" id="screen-home">
+  <div class="home-title">
+    <span class="italiano">ITALIANO</span>
+    <span class="quiz">QUIZ</span>
+  </div>
+
+  <div class="stat-row">
+    <button class="stat-tile words" onclick="showScreen('wordlist')">
+      <span class="stat-num" id="stat-words">0</span>
+      <span class="stat-label">WORDS</span>
+    </button>
+    <div class="stat-tile mastered">
+      <span class="stat-num" id="stat-mastered">0</span>
+      <span class="stat-label">MASTERED</span>
+    </div>
+    <div class="stat-tile streak">
+      <span class="stat-num" id="stat-streak">0</span>
+      <span class="stat-label">STREAK</span>
+    </div>
+  </div>
+
+  <button class="start-btn" id="start-btn" onclick="startQuiz()">START</button>
+</div>
+
+<!-- ── QUIZ ── -->
+<div class="screen" id="screen-quiz">
+  <div class="header">
+    <button class="iq-logo" onclick="goHome()" aria-label="Home"><span>IQ</span></button>
+    <div class="lang-toggle">
+      <button class="lang-btn" data-lang="IT" onclick="setLanguage('IT')" aria-label="Quiz me in Italian">
+        <svg viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+          <rect width="10" height="30" fill="#008C45"/>
+          <rect x="10" width="10" height="30" fill="#FFFFFF"/>
+          <rect x="20" width="10" height="30" fill="#CD212A"/>
+        </svg>
+      </button>
+      <button class="lang-btn" data-lang="EN" onclick="setLanguage('EN')" aria-label="Quiz me in English">
+        <svg viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+          <rect width="30" height="30" fill="#FFFFFF"/>
+          <rect x="12" width="6" height="30" fill="#CE1126"/>
+          <rect y="12" width="30" height="6" fill="#CE1126"/>
+        </svg>
+      </button>
+    </div>
+    <div class="header-spacer"></div>
+  </div>
+
+  <div class="quiz-body">
+    <div class="quiz-pill question" id="quiz-question">—</div>
+    <div class="quiz-pill answer">
+      <input type="text" id="quiz-answer" placeholder="answer"
+             autocomplete="off" autocorrect="off"
+             autocapitalize="none" spellcheck="false">
+    </div>
+    <div class="feedback" id="feedback"></div>
+    <div class="progress-dots" id="progress-dots">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── WORDLIST ── -->
+<div class="screen" id="screen-wordlist">
+  <div class="header">
+    <button class="iq-logo" onclick="goHome()" aria-label="Home"><span>IQ</span></button>
+    <div class="lang-toggle">
+      <button class="lang-btn" data-lang="IT" onclick="setLanguage('IT')" aria-label="Italian">
+        <svg viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+          <rect width="10" height="30" fill="#008C45"/>
+          <rect x="10" width="10" height="30" fill="#FFFFFF"/>
+          <rect x="20" width="10" height="30" fill="#CD212A"/>
+        </svg>
+      </button>
+      <button class="lang-btn" data-lang="EN" onclick="setLanguage('EN')" aria-label="English">
+        <svg viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+          <rect width="30" height="30" fill="#FFFFFF"/>
+          <rect x="12" width="6" height="30" fill="#CE1126"/>
+          <rect y="12" width="30" height="6" fill="#CE1126"/>
+        </svg>
+      </button>
+    </div>
+    <div class="header-spacer"></div>
+  </div>
+
+  <div class="word-list" id="word-list">
+    <div class="empty">Loading…</div>
+  </div>
+  <button class="refresh-btn" id="refresh-btn" onclick="refreshWords()" aria-label="Refresh word list">↻</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════════════════
+// REPLACE this value with the AUTH_TOKEN you set on Render's Environment tab.
+// Anyone who can fetch this page can read this token, so keep the Render URL
+// to yourself.
+const AUTH_TOKEN = '__REPLACE_WITH_YOUR_AUTH_TOKEN__';
+
+const API_BASE = ''; // same-origin (PWA served from server.js)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Persistence (localStorage)
+// ═══════════════════════════════════════════════════════════════════════════
+const STORAGE_WORDS  = 'iv_words_v2';
+const STORAGE_STREAK = 'iv_streak_v2';
+const STORAGE_TODAY  = 'iv_today_v2';
+const STORAGE_LANG   = 'iv_lang_v2';
+
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+function loadWords()  { try { return JSON.parse(localStorage.getItem(STORAGE_WORDS))  || []; } catch { return []; } }
+function saveWords(w) { localStorage.setItem(STORAGE_WORDS, JSON.stringify(w)); }
+
+function loadStreak() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_STREAK)) || { count: 0, lastDate: null }; }
+  catch { return { count: 0, lastDate: null }; }
+}
+function saveStreak(s) { localStorage.setItem(STORAGE_STREAK, JSON.stringify(s)); }
+
+function loadToday() {
+  try {
+    const t = JSON.parse(localStorage.getItem(STORAGE_TODAY));
+    if (!t || t.date !== todayStr())
+      return { date: todayStr(), correctToday: [], consecutiveCorrect: 0, wonToday: false };
+    return t;
+  } catch {
+    return { date: todayStr(), correctToday: [], consecutiveCorrect: 0, wonToday: false };
+  }
+}
+function saveToday(t) { localStorage.setItem(STORAGE_TODAY, JSON.stringify(t)); }
+
+function loadLang() { return localStorage.getItem(STORAGE_LANG) || 'IT'; }
+function saveLang(l) { localStorage.setItem(STORAGE_LANG, l); }
+
+let currentLang = loadLang();
+let currentWord = null;
+let answered = false;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Toast
+// ═══════════════════════════════════════════════════════════════════════════
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Navigation
+// ═══════════════════════════════════════════════════════════════════════════
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  if (name === 'home')     refreshHomeStats();
+  if (name === 'wordlist') renderWordlist();
+  if (name === 'quiz')     updateLangButtons();
+}
+function goHome() { showScreen('home'); }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// API
+// ═══════════════════════════════════════════════════════════════════════════
+async function fetchWords() {
+  try {
+    const r = await fetch(`${API_BASE}/words?token=${encodeURIComponent(AUTH_TOKEN)}`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    if (data.status !== 'ok') throw new Error(data.message || 'unknown');
+    saveWords(data.words);
+    return data.words;
+  } catch (err) {
+    showToast('Could not load words: ' + err.message);
+    return null;
+  }
+}
+
+async function refreshWords() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+  const w = await fetchWords();
+  btn.classList.remove('spinning');
+  if (w) {
+    renderWordlist();
+    refreshHomeStats();
+    showToast('Loaded ' + w.length + ' words');
+  }
+}
+
+async function updateMasteryOnServer(italian, mastery) {
+  try {
+    await fetch(`${API_BASE}/update_mastery?token=${encodeURIComponent(AUTH_TOKEN)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ italian, mastery })
+    });
+  } catch (err) {
+    console.error('update_mastery failed:', err.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Home
+// ═══════════════════════════════════════════════════════════════════════════
+function refreshHomeStats() {
+  const words = loadWords();
+  const mastered = words.filter(w => w.mastery >= 5).length;
+  const streak = loadStreak();
+  document.getElementById('stat-words').textContent = words.length;
+  document.getElementById('stat-mastered').textContent = mastered;
+  document.getElementById('stat-streak').textContent = streak.count;
+
+  const startBtn = document.getElementById('start-btn');
+  const available = words.filter(w => w.mastery < 5).length;
+  startBtn.disabled = available === 0;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Wordlist
+// ═══════════════════════════════════════════════════════════════════════════
+function renderWordlist() {
+  const words = loadWords();
+  const list = document.getElementById('word-list');
+  if (words.length === 0) {
+    list.innerHTML = '<div class="empty">No words yet. Ask Claude about an Italian word, then tap ↻ to refresh.</div>';
+    return;
+  }
+  const sorted = [...words].sort((a, b) => {
+    const aMaster = a.mastery >= 5, bMaster = b.mastery >= 5;
+    if (aMaster !== bMaster) return aMaster ? 1 : -1;
+    return a.italian.localeCompare(b.italian, 'it');
+  });
+  list.innerHTML = sorted.map(w => `
+    <div class="word-row${w.mastery >= 5 ? ' mastered' : ''}">
+      <span class="it">${escapeHtml(w.italian)}</span>
+      <span class="en">${escapeHtml(w.english)}</span>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Quiz
+// ═══════════════════════════════════════════════════════════════════════════
+function setLanguage(lang) {
+  currentLang = lang;
+  saveLang(lang);
+  updateLangButtons();
+  if (currentWord && document.getElementById('screen-quiz').classList.contains('active')) {
+    renderQuestion();
+  }
+}
+
+function updateLangButtons() {
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.lang === currentLang);
+  });
+}
+
+function pickRandomWord() {
+  const today = loadToday();
+  const words = loadWords();
+  const pool = words.filter(w =>
+    w.mastery < 5 &&
+    !today.correctToday.includes(w.italian.toLowerCase())
+  );
+  if (pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function startQuiz() {
+  if (loadWords().length === 0) {
+    showToast('No words yet — add some via Claude first');
+    return;
+  }
+  // If the day was already won, restarting starts a fresh 5-in-a-row run.
+  // Words already answered correctly today stay excluded.
+  const today = loadToday();
+  if (today.wonToday) {
+    today.consecutiveCorrect = 0;
+    today.wonToday = false;
+    saveToday(today);
+  } else {
+    // Even if not won, reset the run when explicitly starting from home.
+    today.consecutiveCorrect = 0;
+    saveToday(today);
+  }
+  showScreen('quiz');
+  nextQuestion();
+}
+
+function renderProgress() {
+  const today = loadToday();
+  const dots = document.querySelectorAll('#progress-dots .dot');
+  dots.forEach((d, i) => {
+    d.className = 'dot' + (i < today.consecutiveCorrect ? ' correct' : '');
+  });
+}
+
+function renderQuestion() {
+  if (!currentWord) return;
+  // currentLang = which language to be quizzed IN (i.e., what user types).
+  // IT → prompt is English, user types Italian.
+  // EN → prompt is Italian, user types English.
+  const prompt = currentLang === 'IT' ? currentWord.english : currentWord.italian;
+  document.getElementById('quiz-question').textContent = prompt || '—';
+
+  const input = document.getElementById('quiz-answer');
+  input.value = '';
+  input.disabled = false;
+  setTimeout(() => input.focus(), 50);
+
+  document.getElementById('feedback').textContent = '';
+  document.getElementById('feedback').className = 'feedback';
+  answered = false;
+}
+
+function nextQuestion() {
+  currentWord = pickRandomWord();
+  if (!currentWord) {
+    const allMastered = loadWords().every(w => w.mastery >= 5);
+    document.getElementById('quiz-question').textContent =
+      allMastered ? '✦ All mastered' : '✦ Done for today';
+    document.getElementById('quiz-answer').disabled = true;
+    document.getElementById('quiz-answer').value = '';
+    document.getElementById('feedback').textContent = '';
+    return;
+  }
+  renderProgress();
+  renderQuestion();
+}
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1]
+        ? dp[i-1][j-1]
+        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+function checkAnswer(user, correct) {
+  const u = user.trim().toLowerCase();
+  const c = correct.trim().toLowerCase();
+  if (!u) return false;
+  return u === c || levenshtein(u, c) <= 1;
+}
+
+function submitAnswer() {
+  if (answered || !currentWord) return;
+  const input = document.getElementById('quiz-answer');
+  const userInput = input.value;
+  if (!userInput.trim()) return;
+
+  const expected = currentLang === 'IT' ? currentWord.italian : currentWord.english;
+  const correct = checkAnswer(userInput, expected);
+
+  answered = true;
+  input.disabled = true;
+  const fb = document.getElementById('feedback');
+  const today = loadToday();
+
+  if (correct) {
+    today.consecutiveCorrect++;
+    const key = currentWord.italian.toLowerCase();
+    if (!today.correctToday.includes(key)) today.correctToday.push(key);
+
+    fb.textContent = '✓ ' + expected;
+    fb.className = 'feedback correct';
+
+    // Bump mastery locally + push to sheet (fire-and-forget).
+    const words = loadWords();
+    const w = words.find(x => x.italian.toLowerCase() === key);
+    if (w) {
+      w.mastery = Math.min(5, w.mastery + 1);
+      w.lastUpdated = todayStr();
+      saveWords(words);
+      updateMasteryOnServer(w.italian, w.mastery);
+    }
+
+    renderProgress();
+
+    // Did we win the day?
+    if (today.consecutiveCorrect >= 5) {
+      today.wonToday = true;
+      saveToday(today);
+
+      const streak = loadStreak();
+      if (streak.lastDate !== todayStr()) {
+        const y = new Date(); y.setDate(y.getDate() - 1);
+        const yStr = y.toISOString().slice(0, 10);
+        streak.count = streak.lastDate === yStr ? streak.count + 1 : 1;
+        streak.lastDate = todayStr();
+        saveStreak(streak);
+      }
+
+      setTimeout(() => {
+        showToast('✦ 5 in a row — day won');
+        setTimeout(goHome, 1600);
+      }, 700);
+      return;
+    }
+    saveToday(today);
+    setTimeout(nextQuestion, 900);
+  } else {
+    // Wrong: flash a red dot in the next slot, then reset the run.
+    const dots = document.querySelectorAll('#progress-dots .dot');
+    if (dots[today.consecutiveCorrect]) {
+      dots[today.consecutiveCorrect].classList.add('wrong');
+    }
+    fb.textContent = '✗ ' + expected;
+    fb.className = 'feedback wrong';
+    today.consecutiveCorrect = 0;
+    saveToday(today);
+    setTimeout(nextQuestion, 1500);
+  }
+}
+
+// Enter key submits when on quiz screen.
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' &&
+      document.getElementById('screen-quiz').classList.contains('active')) {
+    submitAnswer();
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════════════════════════
+async function init() {
+  updateLangButtons();
+  refreshHomeStats();
+  // Try to fetch fresh words on open; fall back to cache if it fails.
+  const fresh = await fetchWords();
+  if (fresh) refreshHomeStats();
+
+  // Service worker for offline caching.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+}
+init();
+</script>
+</body>
+</html>
