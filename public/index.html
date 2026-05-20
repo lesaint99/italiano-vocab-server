@@ -1,4 +1,4 @@
-/<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -34,8 +34,9 @@
     :root {
       --green: #3FA838;
       --green-dark: #2F8528;
-      --red: #EF3340;
-      --red-dark: #C82731;
+      --red: #FA3E46;
+      --red-dark: #D8262E;
+      --green-ring: #8FD18B;
       --white: #FFFFFF;
       --grey-row: #ECECEC;
       --grey-text: #999999;
@@ -94,18 +95,20 @@
       font-variation-settings: var(--hal-bold);
       letter-spacing: -0.02em;
     }
-    /* Per SETUP.md typography spec */
-    .home-title .italiano { color: var(--green); font-size: 67pt; }
-    .home-title .quiz     { color: var(--red);   font-size: 67pt; margin-top: -10pt; }
+    /* Per SETUP.md typography spec. ITALIANO + QUIZ are sized so the two
+       lines render at roughly the same visual width (8 letters at ~half
+       the size matches 4 letters at full size). */
+    .home-title .italiano { color: var(--green); font-size: 48pt; }
+    .home-title .quiz     { color: var(--red);   font-size: 96pt; margin-top: -8pt; }
 
     .stat-row {
       display: flex;
-      gap: 14px;
+      gap: 10px;
     }
     .stat-tile {
-      width: 84px;
-      height: 84px;
-      border-radius: 14px;
+      width: 100px;
+      height: 100px;
+      border-radius: 12px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -116,14 +119,14 @@
       cursor: default;
     }
     .stat-tile.words    { background: var(--green); color: var(--white); cursor: pointer; }
-    .stat-tile.mastered { background: var(--white); color: var(--text); border: 1.5px solid #DDD; }
+    .stat-tile.mastered { background: var(--white); color: var(--text); border: 1.5px solid #222; }
     .stat-tile.streak   { background: var(--red); color: var(--white); }
     .stat-tile.words:active { transform: scale(0.97); }
 
     .stat-num {
       font-family: 'Space Crusaders';
       font-style: italic;
-      font-size: 30pt;
+      font-size: 24pt;
       line-height: 1;
     }
     .stat-label {
@@ -136,43 +139,46 @@
       text-transform: uppercase;
     }
 
+    /* START button: diameter matches a stat tile; outer light-green ring
+       via box-shadow spread, no inner drop-shadow. */
     .start-btn {
-      width: 140px;
-      height: 140px;
+      width: 100px;
+      height: 100px;
       border-radius: 50%;
       background: var(--green);
       color: var(--white);
       border: none;
       font-family: 'Space Crusaders';
       font-style: italic;
-      font-size: 21pt;
+      font-size: 18pt;
       cursor: pointer;
-      box-shadow: 0 4px 18px rgba(63,168,56,0.35);
+      box-shadow: 0 0 0 7px var(--green-ring);
       transition: transform 0.1s, box-shadow 0.1s;
     }
     .start-btn:active {
       transform: scale(0.96);
-      box-shadow: 0 2px 8px rgba(63,168,56,0.3);
+      box-shadow: 0 0 0 5px var(--green-ring);
     }
     .start-btn:disabled {
       background: #CCC;
-      box-shadow: none;
+      box-shadow: 0 0 0 7px #E5E5E5;
       cursor: not-allowed;
     }
 
     /* ── HEADER (quiz, wordlist) ───────────────────────────────────────── */
+    /* Header now holds only the IQ logo, left-aligned. The flag row sits
+       below it as its own centered band. */
     .header {
-      padding: 16px 20px 8px;
+      padding: 16px 20px 4px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
       flex-shrink: 0;
     }
     .iq-logo {
-      width: 52px;
-      height: 52px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
-      border: 2.5px solid var(--green);
+      border: 2px solid var(--green);
       background: var(--white);
       display: flex;
       align-items: center;
@@ -184,36 +190,45 @@
     .iq-logo span {
       color: var(--red);
       font-family: 'Fact Deck Web';
-      font-size: 26pt;
+      font-size: 20pt;
       line-height: 1;
-      margin-top: -2px;
+      margin-top: -1px;
+      /* Fake-bold the regular-weight Fact Deck face. */
+      -webkit-text-stroke: 0.6px currentColor;
+      text-stroke: 0.6px currentColor;
     }
     .iq-logo:active { transform: scale(0.95); }
 
-    .lang-toggle {
+    /* Flag row — sits under the header, centered, with generous space
+       between it and the content that follows. */
+    .lang-row {
       display: flex;
-      gap: 6px;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px 0 28px;
+      flex-shrink: 0;
     }
+    /* Flags are PNG assets — the rounded-square shape and the EN flag's
+       outer border are baked into the images. Active vs inactive is
+       indicated by opacity only. */
     .lang-btn {
       width: 44px;
       height: 44px;
-      border-radius: 8px;
-      border: 2px solid transparent;
+      border: none;
       cursor: pointer;
-      padding: 2px;
-      background: var(--white);
-      transition: border-color 0.15s, transform 0.1s;
+      padding: 0;
+      background: transparent;
+      transition: opacity 0.15s, transform 0.1s;
+      opacity: 0.55;
     }
-    .lang-btn svg {
+    .lang-btn img {
       display: block;
       width: 100%;
       height: 100%;
-      border-radius: 4px;
+      object-fit: contain;
     }
-    .lang-btn.active { border-color: var(--text); }
+    .lang-btn.active { opacity: 1; }
     .lang-btn:active { transform: scale(0.95); }
-
-    .header-spacer { width: 52px; flex-shrink: 0; }
 
     /* ── QUIZ ──────────────────────────────────────────────────────────── */
     .quiz-body {
@@ -227,17 +242,19 @@
     }
     .quiz-pill {
       background: var(--grey-row);
-      border-radius: 32px;
+      border-radius: 18px;
       padding: 18px 28px;
-      min-height: 64px;
+      min-height: 60px;
       display: flex;
       align-items: center;
+      justify-content: center;
       font-family: 'HAL Magic Variable';
-      font-weight: 650;
-      font-variation-settings: var(--hal-bold);
-      font-size: 26pt;
+      font-weight: 400;
+      font-variation-settings: var(--hal-regular);
+      font-size: 22pt;
       color: var(--text);
       line-height: 1.1;
+      text-align: center;
     }
     .quiz-pill.answer { padding: 0; }
     .quiz-pill input {
@@ -248,7 +265,8 @@
       padding: 18px 28px;
       font: inherit;
       color: inherit;
-      border-radius: 32px;
+      border-radius: 18px;
+      text-align: center;
     }
     .quiz-pill input::placeholder { color: var(--grey-text); font-style: normal; }
     .quiz-pill input:disabled { background: transparent; }
@@ -275,7 +293,7 @@
       width: 22px;
       height: 22px;
       border-radius: 50%;
-      border: 2.5px solid var(--text);
+      border: 1.5px solid var(--text);
       background: transparent;
       transition: background 0.2s, border-color 0.2s;
     }
@@ -293,14 +311,14 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 12px 18px;
+      padding: 8px 14px;
       background: var(--grey-row);
-      border-radius: 22px;
-      margin-bottom: 6px;
+      border-radius: 6px;
+      margin-bottom: 4px;
       font-family: 'HAL Magic Variable';
       font-weight: 400;
       font-variation-settings: var(--hal-regular);
-      font-size: 15pt;
+      font-size: 12.5pt;
       line-height: 1.2;
       gap: 12px;
     }
@@ -403,23 +421,14 @@
 <div class="screen" id="screen-quiz">
   <div class="header">
     <button class="iq-logo" onclick="goHome()" aria-label="Home"><span>IQ</span></button>
-    <div class="lang-toggle">
-      <button class="lang-btn" data-lang="IT" onclick="setLanguage('IT')" aria-label="Quiz me in Italian">
-        <svg viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
-          <rect width="10" height="30" fill="#008C45"/>
-          <rect x="10" width="10" height="30" fill="#FFFFFF"/>
-          <rect x="20" width="10" height="30" fill="#CD212A"/>
-        </svg>
-      </button>
-      <button class="lang-btn" data-lang="EN" onclick="setLanguage('EN')" aria-label="Quiz me in English">
-        <svg viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
-          <rect width="30" height="30" fill="#FFFFFF"/>
-          <rect x="12" width="6" height="30" fill="#CE1126"/>
-          <rect y="12" width="30" height="6" fill="#CE1126"/>
-        </svg>
-      </button>
-    </div>
-    <div class="header-spacer"></div>
+  </div>
+  <div class="lang-row">
+    <button class="lang-btn" data-lang="IT" onclick="setLanguage('IT')" aria-label="Quiz me in Italian">
+      <img src="/italian-flag.png" alt="Italian flag">
+    </button>
+    <button class="lang-btn" data-lang="EN" onclick="setLanguage('EN')" aria-label="Quiz me in English">
+      <img src="/english-flag.png" alt="English flag">
+    </button>
   </div>
 
   <div class="quiz-body">
@@ -444,23 +453,14 @@
 <div class="screen" id="screen-wordlist">
   <div class="header">
     <button class="iq-logo" onclick="goHome()" aria-label="Home"><span>IQ</span></button>
-    <div class="lang-toggle">
-      <button class="lang-btn" data-lang="IT" onclick="setLanguage('IT')" aria-label="Italian">
-        <svg viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
-          <rect width="10" height="30" fill="#008C45"/>
-          <rect x="10" width="10" height="30" fill="#FFFFFF"/>
-          <rect x="20" width="10" height="30" fill="#CD212A"/>
-        </svg>
-      </button>
-      <button class="lang-btn" data-lang="EN" onclick="setLanguage('EN')" aria-label="English">
-        <svg viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
-          <rect width="30" height="30" fill="#FFFFFF"/>
-          <rect x="12" width="6" height="30" fill="#CE1126"/>
-          <rect y="12" width="30" height="6" fill="#CE1126"/>
-        </svg>
-      </button>
-    </div>
-    <div class="header-spacer"></div>
+  </div>
+  <div class="lang-row">
+    <button class="lang-btn" data-lang="IT" onclick="setLanguage('IT')" aria-label="Italian">
+      <img src="/italian-flag.png" alt="Italian flag">
+    </button>
+    <button class="lang-btn" data-lang="EN" onclick="setLanguage('EN')" aria-label="English">
+      <img src="/english-flag.png" alt="English flag">
+    </button>
   </div>
 
   <div class="word-list" id="word-list">
@@ -476,7 +476,7 @@
 // REPLACE this value with the AUTH_TOKEN you set on Render's Environment tab.
 // Anyone who can fetch this page can read this token, so keep the Render URL
 // to yourself.
-const AUTH_TOKEN = 'Xysqe8-qipzot-nuhgyb';
+const AUTH_TOKEN = '__REPLACE_WITH_YOUR_AUTH_TOKEN__';
 
 const API_BASE = ''; // same-origin (PWA served from server.js)
 
@@ -517,6 +517,11 @@ function saveLang(l) { localStorage.setItem(STORAGE_LANG, l); }
 let currentLang = loadLang();
 let currentWord = null;
 let answered = false;
+// In-memory session deck. Holds lowercase Italian keys of words still to
+// ask in the current session. Reshuffled on every press of START. No word
+// repeats until the deck is exhausted (then it reshuffles on its own so a
+// long session can keep going).
+let sessionDeck = [];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Toast
@@ -646,15 +651,38 @@ function updateLangButtons() {
   });
 }
 
-function pickRandomWord() {
-  const today = loadToday();
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Build a fresh deck of every non-mastered word's italian key, shuffled.
+function buildSessionDeck() {
   const words = loadWords();
-  const pool = words.filter(w =>
-    w.mastery < 5 &&
-    !today.correctToday.includes(w.italian.toLowerCase())
-  );
-  if (pool.length === 0) return null;
-  return pool[Math.floor(Math.random() * pool.length)];
+  const pool = words
+    .filter(w => (w.mastery ?? 0) < 5)
+    .map(w => w.italian.toLowerCase());
+  sessionDeck = shuffle(pool);
+}
+
+// Pull the next word for the quiz. Skips any deck entries whose word has
+// since been mastered or removed. When the deck empties, reshuffles so a
+// long session can continue indefinitely.
+function pickNextDeckWord() {
+  const words = loadWords();
+  while (sessionDeck.length > 0) {
+    const key = sessionDeck.shift();
+    const w = words.find(x => x.italian.toLowerCase() === key);
+    if (w && (w.mastery ?? 0) < 5) return w;
+  }
+  // Deck empty — reshuffle and try once more.
+  buildSessionDeck();
+  if (sessionDeck.length === 0) return null;
+  return pickNextDeckWord();
 }
 
 function startQuiz() {
@@ -662,18 +690,12 @@ function startQuiz() {
     showToast('No words yet — add some via Claude first');
     return;
   }
-  // If the day was already won, restarting starts a fresh 5-in-a-row run.
-  // Words already answered correctly today stay excluded.
+  // Every press of START reshuffles the deck and resets the 5-in-a-row.
   const today = loadToday();
-  if (today.wonToday) {
-    today.consecutiveCorrect = 0;
-    today.wonToday = false;
-    saveToday(today);
-  } else {
-    // Even if not won, reset the run when explicitly starting from home.
-    today.consecutiveCorrect = 0;
-    saveToday(today);
-  }
+  today.consecutiveCorrect = 0;
+  if (today.wonToday) today.wonToday = false;
+  saveToday(today);
+  buildSessionDeck();
   showScreen('quiz');
   nextQuestion();
 }
@@ -705,11 +727,11 @@ function renderQuestion() {
 }
 
 function nextQuestion() {
-  currentWord = pickRandomWord();
+  currentWord = pickNextDeckWord();
   if (!currentWord) {
-    const allMastered = loadWords().every(w => w.mastery >= 5);
+    const allMastered = loadWords().every(w => (w.mastery ?? 0) >= 5);
     document.getElementById('quiz-question').textContent =
-      allMastered ? '✦ All mastered' : '✦ Done for today';
+      allMastered ? '✦ All mastered' : '✦ No words available';
     document.getElementById('quiz-answer').disabled = true;
     document.getElementById('quiz-answer').value = '';
     document.getElementById('feedback').textContent = '';
@@ -733,11 +755,57 @@ function levenshtein(a, b) {
   return dp[m][n];
 }
 
+// Articles we'll strip from either end (whichever language). Order matters:
+// longer/more specific ones come first so "gli " strips before "i ".
+const ARTICLE_PREFIXES_SPACED = [
+  'the ', 'a ', 'an ',
+  'gli ', 'lo ', 'la ', 'le ', 'il ', 'i ',
+  'uno ', 'una ', 'un '
+];
+const ARTICLE_PREFIXES_APOS = ["l'", "un'"];
+
+function stripArticle(s) {
+  const t = s.trim();
+  const low = t.toLowerCase();
+  for (const art of ARTICLE_PREFIXES_SPACED) {
+    if (low.startsWith(art) && low.length > art.length) {
+      return t.slice(art.length).trim();
+    }
+  }
+  for (const art of ARTICLE_PREFIXES_APOS) {
+    if (low.startsWith(art) && low.length > art.length) {
+      return t.slice(art.length).trim();
+    }
+  }
+  return t;
+}
+
+// Split a stored answer on "/" (with or without surrounding whitespace) so
+// that "railing / handrail" or "knickers/panties" both yield two valid
+// alternatives. Each alternative is also article-stripped, so a four-way
+// match (user × alt, each ± article) is checked with Levenshtein ≤ 1.
+function getAlternatives(stored) {
+  return stored.split(/\s*\/\s*/).map(s => s.trim()).filter(Boolean);
+}
+
+function matches(a, b) {
+  return a === b || levenshtein(a, b) <= 1;
+}
+
 function checkAnswer(user, correct) {
   const u = user.trim().toLowerCase();
-  const c = correct.trim().toLowerCase();
   if (!u) return false;
-  return u === c || levenshtein(u, c) <= 1;
+  const uStripped = stripArticle(u).toLowerCase();
+
+  for (const alt of getAlternatives(correct)) {
+    const a = alt.toLowerCase();
+    const aStripped = stripArticle(a).toLowerCase();
+    if (matches(u, a))                 return true;
+    if (matches(uStripped, a))         return true;
+    if (matches(u, aStripped))         return true;
+    if (matches(uStripped, aStripped)) return true;
+  }
+  return false;
 }
 
 function submitAnswer() {

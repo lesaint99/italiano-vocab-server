@@ -1,6 +1,6 @@
 // Il Mio Vocabolario — service worker
 // Bump CACHE version any time the asset list or HTML changes.
-const CACHE = 'italiano-v4';
+const CACHE = 'italiano-v6';
 
 const ASSETS = [
   '/',
@@ -8,6 +8,8 @@ const ASSETS = [
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
+  '/italian-flag.png',
+  '/english-flag.png',
   '/fonts/HALMagicVariable-Variable.ttf',
   '/fonts/SpaceCrusadersItalic-ZV1Zx.ttf',
   '/fonts/FactDeckWeb-55Regular.ttf'
@@ -37,6 +39,8 @@ self.addEventListener('fetch', e => {
   // sheet reads stay fresh.
   if (url.pathname.startsWith('/mcp') ||
       url.pathname.startsWith('/add') ||
+      url.pathname.startsWith('/words') ||
+      url.pathname.startsWith('/update_mastery') ||
       url.pathname.startsWith('/health')) {
     return; // fall through to default network fetch
   }
