@@ -94,6 +94,60 @@ function addWordInBackground({ italian, english, context, addedDate }) {
   });
 }
 
+// ── Delete a word ──────────────────────────────────────────────────────────
+// Deletes the single row whose column A exactly matches `italian`
+// (case-insensitive, surrounding whitespace ignored). Refuses when there is
+// no match or more than one match, so it can never remove the wrong row.
+// Returns { ok, message }.
+async function deleteWord(italian) {
+  const target = (italian || '').trim().toLowerCase();
+  if (!target) return { ok: false, message: 'italian is required' };
+
+  const auth = getAuth();
+  const sheets = google.sheets({ version: 'v4', auth });
+
+  // Look up the numeric sheetId of the "Sheet1" tab (don't assume 0).
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: SPREADSHEET_ID,
+    fields: 'sheets.properties(sheetId,title)',
+  });
+  const tab = (meta.data.sheets || []).find(s => s.properties.title === 'Sheet1');
+  if (!tab) return { ok: false, message: 'tab "Sheet1" not found' };
+  const sheetId = tab.properties.sheetId;
+
+  const col = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'Sheet1!A:A',
+  });
+  const rows = col.data.values || [];
+  const matches = [];
+  rows.forEach((r, i) => {
+    if ((r[0] || '').trim().toLowerCase() === target) matches.push(i);
+  });
+
+  if (matches.length === 0) {
+    return { ok: false, message: `"${italian}" not found — nothing deleted` };
+  }
+  if (matches.length > 1) {
+    const rowNums = matches.map(i => i + 1).join(', ');
+    return { ok: false, message: `"${italian}" matches ${matches.length} rows (${rowNums}) — nothing deleted` };
+  }
+
+  const idx = matches[0]; // 0-based row index
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    requestBody: {
+      requests: [{
+        deleteDimension: {
+          range: { sheetId, dimension: 'ROWS', startIndex: idx, endIndex: idx + 1 }
+        }
+      }]
+    }
+  });
+  console.log(`Deleted "${italian}" (row ${idx + 1})`);
+  return { ok: true, message: `Deleted "${rows[idx][0]}" (row ${idx + 1})` };
+}
+
 // ── Read all words ─────────────────────────────────────────────────────────
 // Returns the entire word list from the sheet as JSON. The PWA calls this
 // on app open and after the user taps the refresh button.
@@ -232,6 +286,16 @@ app.post('/mcp', tokenAuth, async (req, res) => {
               },
               required: ['italian', 'english']
             }
+          }, {
+            name: 'delete_vocab',
+            description: 'Delete an Italian vocabulary word from the user\'s Google Sheet. Removes the single row whose Italian column exactly matches (case-insensitive); does nothing if there is no match or more than one match.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                italian: { type: 'string', description: 'The Italian word or phrase to delete, exactly as it appears in the sheet' }
+              },
+              required: ['italian']
+            }
           }]
         }
       });
@@ -246,6 +310,25 @@ app.post('/mcp', tokenAuth, async (req, res) => {
           jsonrpc: '2.0',
           id,
           result: { content: [{ type: 'text', text: `✓` }] }
+        });
+        continue;
+      }
+      if (name === 'delete_vocab') {
+        let text;
+        let isError = false;
+        try {
+          const result = await deleteWord(args && args.italian);
+          text = result.message;
+          isError = !result.ok;
+        } catch (err) {
+          console.error('delete_vocab error:', err.message);
+          text = `Error: ${err.message}`;
+          isError = true;
+        }
+        responses.push({
+          jsonrpc: '2.0',
+          id,
+          result: { content: [{ type: 'text', text }], isError }
         });
         continue;
       }
